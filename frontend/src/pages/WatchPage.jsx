@@ -4,216 +4,246 @@ import { useContentStore } from "../store/content";
 import { axiosInstance } from "../lib/axios";
 import Navbar from "../components/Navbar";
 import { ChevronLeft, ChevronRight } from "lucide-react";
-import ReactPlayer from "react-player";
 import { ORIGINAL_IMG_BASE_URL, SMALL_IMG_BASE_URL } from "../utils/constants";
 import { formatReleaseDate } from "../utils/dateFunction";
 import WatchPageSkeleton from "../components/skeletons/WatchPageSkeleton";
 
 const WatchPage = () => {
-	const { id } = useParams();
-	const [trailers, setTrailers] = useState([]);
-	const [currentTrailerIdx, setCurrentTrailerIdx] = useState(0);
-	const [loading, setLoading] = useState(true);
-	const [content, setContent] = useState({});
-	const [similarContent, setSimilarContent] = useState([]);
-	const { contentType } = useContentStore();
+  const { id } = useParams();
+  const { contentType } = useContentStore();
 
-	const sliderRef = useRef(null);
+  const [trailers, setTrailers] = useState([]);
+  const [currentTrailerIdx, setCurrentTrailerIdx] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [content, setContent] = useState(null);
+  const [similarContent, setSimilarContent] = useState([]);
 
-	useEffect(() => {
-		const getTrailers = async () => {
-			try {
-				const res = await axiosInstance.get(`/api/v1/${contentType}/${id}/trailers`);
-				setTrailers(res.data.trailers);
-			} catch (error) {
-				if (error.message.includes("404")) {
-					setTrailers([]);
-				}
-			}
-		};
+  const sliderRef = useRef(null);
 
-		getTrailers();
-	}, [contentType, id]);
+  // 🎬 Fetch trailers
+  useEffect(() => {
+    const getTrailers = async () => {
+      try {
+        const res = await axiosInstance.get(`/api/v1/${contentType}/${id}/trailers`);
 
-	useEffect(() => {
-		const getSimilarContent = async () => {
-			try {
-				const res = await axiosInstance.get(`/api/v1/${contentType}/${id}/similar`);
-				setSimilarContent(res.data.similar);
-			} catch (error) {
-				if (error.message.includes("404")) {
-					setSimilarContent([]);
-				}
-			}
-		};
+        const youtubeTrailers = res.data.trailers.filter(
+          (video) => video.site === "YouTube"
+        );
 
-		getSimilarContent();
-	}, [contentType, id]);
+        setTrailers(youtubeTrailers);
+      } catch (error) {
+        setTrailers([]);
+      }
+    };
 
-	useEffect(() => {
-		const getContentDetails = async () => {
-			try {
-				const res = await axiosInstance.get(`/api/v1/${contentType}/${id}/details`);
-				setContent(res.data.content);
-			} catch (error) {
-				if (error.message.includes("404")) {
-					setContent(null);
-				}
-			} finally {
-				setLoading(false);
-			}
-		};
+    getTrailers();
+  }, [contentType, id]);
 
-		getContentDetails();
-	}, [contentType, id]);
+  // ✅ Reset index when trailers load
+  useEffect(() => {
+    if (trailers.length > 0) {
+      setCurrentTrailerIdx(0);
+    }
+  }, [trailers]);
 
-	const handleNext = () => {
-		if (currentTrailerIdx < trailers.length - 1) setCurrentTrailerIdx(currentTrailerIdx + 1);
-	};
-	const handlePrev = () => {
-		if (currentTrailerIdx > 0) setCurrentTrailerIdx(currentTrailerIdx - 1);
-	};
+  // 🎬 Fetch similar content
+  useEffect(() => {
+    const getSimilarContent = async () => {
+      try {
+        const res = await axiosInstance.get(`/api/v1/${contentType}/${id}/similar`);
+        setSimilarContent(res.data.similar);
+      } catch (error) {
+        setSimilarContent([]);
+      }
+    };
 
-	const scrollLeft = () => {
-		if (sliderRef.current) sliderRef.current.scrollBy({ left: -sliderRef.current.offsetWidth, behavior: "smooth" });
-	};
-	const scrollRight = () => {
-		if (sliderRef.current) sliderRef.current.scrollBy({ left: sliderRef.current.offsetWidth, behavior: "smooth" });
-	};
+    getSimilarContent();
+  }, [contentType, id]);
 
-	if (loading)
-		return (
-			<div className='min-h-screen bg-black p-10'>
-				<WatchPageSkeleton />
-			</div>
-		);
+  // 🎬 Fetch details
+  useEffect(() => {
+    const getContentDetails = async () => {
+      try {
+        const res = await axiosInstance.get(`/api/v1/${contentType}/${id}/details`);
+        setContent(res.data.content);
+      } catch (error) {
+        setContent(null);
+      } finally {
+        setLoading(false);
+      }
+    };
 
-	if (!content) {
-		return (
-			<div className='bg-black text-white h-screen'>
-				<div className='max-w-6xl mx-auto'>
-					<Navbar />
-					<div className='text-center mx-auto px-4 py-8 h-full mt-40'>
-						<h2 className='text-2xl sm:text-5xl font-bold text-balance'>Content not found 😥</h2>
-					</div>
-				</div>
-			</div>
-		);
-	}
+    getContentDetails();
+  }, [contentType, id]);
 
-	return (
-		<div className='bg-black min-h-screen text-white'>
-			<div className='mx-auto container px-4 py-8 h-full'>
-				<Navbar />
+  // 🎯 Safe current trailer
+  const currentTrailer = trailers[currentTrailerIdx];
 
-				{trailers.length > 0 && (
-					<div className='flex justify-between items-center mb-4'>
-						<button
-							className={`
-							bg-gray-500/70 hover:bg-gray-500 text-white py-2 px-4 rounded ${
-								currentTrailerIdx === 0 ? "opacity-50 cursor-not-allowed " : ""
-							}}
-							`}
-							disabled={currentTrailerIdx === 0}
-							onClick={handlePrev}
-						>
-							<ChevronLeft size={24} />
-						</button>
+  const handleNext = () => {
+    if (currentTrailerIdx < trailers.length - 1) {
+      setCurrentTrailerIdx((prev) => prev + 1);
+    }
+  };
 
-						<button
-							className={`
-							bg-gray-500/70 hover:bg-gray-500 text-white py-2 px-4 rounded ${
-								currentTrailerIdx === trailers.length - 1 ? "opacity-50 cursor-not-allowed " : ""
-							}}
-							`}
-							disabled={currentTrailerIdx === trailers.length - 1}
-							onClick={handleNext}
-						>
-							<ChevronRight size={24} />
-						</button>
-					</div>
-				)}
+  const handlePrev = () => {
+    if (currentTrailerIdx > 0) {
+      setCurrentTrailerIdx((prev) => prev - 1);
+    }
+  };
 
-				<div className='aspect-video mb-8 p-2 sm:px-10 md:px-32'>
-					{trailers.length > 0 && (
-						<ReactPlayer
-							controls={true}
-							width={"100%"}
-							height={"70vh"}
-							className='mx-auto overflow-hidden rounded-lg'
-							url={`https://www.youtube.com/watch?v=${trailers[currentTrailerIdx].key}`}
-						/>
-					)}
+  const scrollLeft = () => {
+    sliderRef.current?.scrollBy({
+      left: -sliderRef.current.offsetWidth,
+      behavior: "smooth",
+    });
+  };
 
-					{trailers?.length === 0 && (
-						<h2 className='text-xl text-center mt-5'>
-							No trailers available for{" "}
-							<span className='font-bold text-red-600'>{content?.title || content?.name}</span> 😥
-						</h2>
-					)}
-				</div>
+  const scrollRight = () => {
+    sliderRef.current?.scrollBy({
+      left: sliderRef.current.offsetWidth,
+      behavior: "smooth",
+    });
+  };
 
-				{/* movie details */}
-				<div
-					className='flex flex-col md:flex-row items-center justify-between gap-20 
-				max-w-6xl mx-auto'
-				>
-					<div className='mb-4 md:mb-0'>
-						<h2 className='text-5xl font-bold text-balance'>{content?.title || content?.name}</h2>
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-black p-10">
+        <WatchPageSkeleton />
+      </div>
+    );
+  }
 
-						<p className='mt-2 text-lg'>
-							{formatReleaseDate(content?.release_date || content?.first_air_date)} |{" "}
-							{content?.adult ? (
-								<span className='text-red-600'>18+</span>
-							) : (
-								<span className='text-green-600'>PG-13</span>
-							)}{" "}
-						</p>
-						<p className='mt-4 text-lg'>{content?.overview}</p>
-					</div>
-					<img
-						src={ORIGINAL_IMG_BASE_URL + content?.poster_path}
-						alt='Poster image'
-						className='max-h-[600px] rounded-md'
-					/>
-				</div>
+  if (!content) {
+    return (
+      <div className="bg-black text-white h-screen">
+        <div className="max-w-6xl mx-auto">
+          <Navbar />
+          <div className="text-center mt-40">
+            <h2 className="text-3xl font-bold">Content not found 😥</h2>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
-				{similarContent.length > 0 && (
-					<div className='mt-12 max-w-5xl mx-auto relative'>
-						<h3 className='text-3xl font-bold mb-4'>Similar Movies/Tv Show</h3>
+  return (
+    <div className="bg-black min-h-screen text-white">
+      <div className="container mx-auto px-4 py-8">
+        <Navbar />
 
-						<div className='flex overflow-x-scroll scrollbar-hide gap-4 pb-4 group' ref={sliderRef}>
-							{similarContent.map((content) => {
-								if (content.poster_path === null) return null;
-								return (
-									<Link key={content.id} to={`/watch/${content.id}`} className='w-52 flex-none'>
-										<img
-											src={SMALL_IMG_BASE_URL + content.poster_path}
-											alt='Poster path'
-											className='w-full h-auto rounded-md'
-										/>
-										<h4 className='mt-2 text-lg font-semibold'>{content.title || content.name}</h4>
-									</Link>
-								);
-							})}
+        {/* 🎬 Controls */}
+        {trailers.length > 0 && (
+          <div className="flex justify-between items-center mb-4">
+            <button
+              onClick={handlePrev}
+              disabled={currentTrailerIdx === 0}
+              className="bg-gray-500/70 hover:bg-gray-500 px-4 py-2 rounded disabled:opacity-50"
+            >
+              <ChevronLeft size={24} />
+            </button>
 
-							<ChevronRight
-								className='absolute top-1/2 -translate-y-1/2 right-2 w-8 h-8
-										opacity-0 group-hover:opacity-100 transition-all duration-300 cursor-pointer
-										 bg-red-600 text-white rounded-full'
-								onClick={scrollRight}
-							/>
-							<ChevronLeft
-								className='absolute top-1/2 -translate-y-1/2 left-2 w-8 h-8 opacity-0 
-								group-hover:opacity-100 transition-all duration-300 cursor-pointer bg-red-600 
-								text-white rounded-full'
-								onClick={scrollLeft}
-							/>
-						</div>
-					</div>
-				)}
-			</div>
-		</div>
-	);
+            <button
+              onClick={handleNext}
+              disabled={currentTrailerIdx === trailers.length - 1}
+              className="bg-gray-500/70 hover:bg-gray-500 px-4 py-2 rounded disabled:opacity-50"
+            >
+              <ChevronRight size={24} />
+            </button>
+          </div>
+        )}
+
+        {/* 🎥 Player */}
+        <div className="aspect-video mb-8 p-2 sm:px-10 md:px-32">
+          {currentTrailer?.key ? (
+			<iframe
+				width="100%"
+ 				height="500"
+				src={`https://www.youtube.com/embed/${currentTrailer?.key}`}
+ 				title="YouTube video player"
+				frameBorder="0"
+				allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+				allowFullScreen
+			/>
+          ) : (
+            <h2 className="text-center mt-5 text-lg">
+              No trailers available for{" "}
+              <span className="text-red-600 font-bold">
+                {content.title || content.name}
+              </span>
+            </h2>
+          )}
+        </div>
+
+        {/* 🎬 Details */}
+        <div className="flex flex-col md:flex-row gap-20 max-w-6xl mx-auto">
+          <div>
+            <h2 className="text-5xl font-bold">
+              {content.title || content.name}
+            </h2>
+
+            <p className="mt-2 text-lg">
+              {formatReleaseDate(
+                content.release_date || content.first_air_date
+              )}{" "}
+              |{" "}
+              {content.adult ? (
+                <span className="text-red-600">18+</span>
+              ) : (
+                <span className="text-green-600">PG-13</span>
+              )}
+            </p>
+
+            <p className="mt-4">{content.overview}</p>
+          </div>
+
+          <img
+            src={ORIGINAL_IMG_BASE_URL + content.poster_path}
+            alt="poster"
+            className="max-h-[600px] rounded-md"
+          />
+        </div>
+
+        {/* 🎬 Similar */}
+        {similarContent.length > 0 && (
+          <div className="mt-12 max-w-5xl mx-auto relative">
+            <h3 className="text-3xl font-bold mb-4">
+              Similar Movies / TV Shows
+            </h3>
+
+            <div
+              className="flex overflow-x-scroll gap-4 pb-4"
+              ref={sliderRef}
+            >
+              {similarContent.map((item) => {
+                if (!item.poster_path) return null;
+
+                return (
+                  <Link key={item.id} to={`/watch/${item.id}`} className="w-52 flex-none">
+                    <img
+                      src={SMALL_IMG_BASE_URL + item.poster_path}
+                      className="rounded-md"
+                    />
+                    <h4 className="mt-2">
+                      {item.title || item.name}
+                    </h4>
+                  </Link>
+                );
+              })}
+            </div>
+
+            <ChevronLeft
+              onClick={scrollLeft}
+              className="absolute left-2 top-1/2 -translate-y-1/2 cursor-pointer bg-red-600 rounded-full"
+            />
+            <ChevronRight
+              onClick={scrollRight}
+              className="absolute right-2 top-1/2 -translate-y-1/2 cursor-pointer bg-red-600 rounded-full"
+            />
+          </div>
+        )}
+      </div>
+    </div>
+  );
 };
+
 export default WatchPage;
